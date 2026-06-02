@@ -1,0 +1,225 @@
+================================================================================
+    GPointNet 环境配置完整命令
+    (Generative PointNet - CVPR 2021)
+================================================================================
+
+【环境要求】
+  - 操作系统: Linux (项目仅支持 Linux，Makefile 中硬编码了 lib.linux-x86_64)
+  - Python:   3.6 ~ 3.8
+  - CUDA:     >= 10.2 (推荐 11.1)
+  - GPU:      显存 >= 8GB（RTX 2080 Ti 单卡训练约 8 小时）
+  - 磁盘空间: 约 5GB（数据集 + 检查点）
+
+================================================================================
+  第 1 步: 克隆仓库
+================================================================================
+
+git clone https://github.com/fei960922/GPointNet.git
+cd GPointNet
+
+================================================================================
+  第 2 步: 创建 Conda 环境 (方式一: 使用 environment.yml)
+================================================================================
+
+conda env create -f environment.yml
+
+# 激活环境
+conda activate gpointnet_gpu
+
+================================================================================
+  第 2 步备选: 手动安装依赖 (方式二: 不使用 environment.yml)
+================================================================================
+
+conda create -n gpointnet_gpu python=3.8 -y
+conda activate gpointnet_gpu
+
+# 安装 PyTorch (CUDA 11.1)
+conda install pytorch==1.8.0 torchvision==0.9.0 torchaudio==0.8.0 cudatoolkit=11.1 -c pytorch -y
+
+# 如果 CUDA 是 10.2，则安装:
+# conda install pytorch==1.8.0 torchvision==0.9.0 torchaudio==0.8.0 cudatoolkit=10.2 -c pytorch -y
+
+# 如果 CUDA 只有 10.0 或 10.1，降级 PyTorch:
+# conda install pytorch==1.4.0 torchvision==0.5.0 cudatoolkit=10.1 -c pytorch -y
+
+# 安装其他依赖
+conda install numpy=1.19 scipy scikit-learn matplotlib h5py tqdm -y
+pip install pytorch-lightning==1.2.1 tensorboard
+
+================================================================================
+  第 3 步: 下载数据集
+================================================================================
+
+# 下载预处理好的 ModelNet 数据集（2K 点云版本）
+wget http://www.stat.ucla.edu/~jxie/GPointNet/data/modelnet_2k.zip
+unzip -q modelnet_2k.zip
+
+# 或从 Google Drive 下载 ModelNet40 (完整版 15K 点云)
+# 参考 utils/data_util.py 中的 download_modelnet40() 函数
+
+================================================================================
+  第 4 步: (可选) 下载预训练模型
+================================================================================
+
+mkdir checkpoint
+wget http://www.stat.ucla.edu/~jxie/GPointNet/checkpoint/syn_cvpr_chair.ckpt -O checkpoint/syn_cvpr_chair.ckpt
+
+================================================================================
+  第 5 步: 编译 CUDA 评估指标扩展 (必须操作，否则评估报错)
+================================================================================
+
+# 安装 nvcc (conda 安装的 PyTorch 不包含 nvcc)
+conda install -c conda-forge nvcc_linux-64=11.1 -y
+
+# 编译 CUDA 扩展
+cd metrics/pytorch_structural_losses
+make
+
+# ─── 常见编译问题及解决 ──────────────────────────────────────
+#
+# 问题 1: c++11 不支持某些语法
+#   解决: 编辑 Makefile 第 69-70 行，将 "c++11" 改为 "c++14"
+#         (当前版本已经是 c++14)
+#
+# 问题 2: nvcc 找不到
+#   解决: 确认 nvcc 路径，通常在:
+#         ~/miniconda3/envs/gpointnet_gpu/bin/nvcc
+#         Makefile 第 9 行: NVCC := nvcc (如果 alias 不对改为完整路径)
+#
+# 问题 3: ninja 编译错误
+#   解决: 编辑 setup.py 第 23 行:
+#         cmdclass={'build_ext': BuildExtension.with_options(use_ninja=False)}
+#         (当前版本已经是 use_ninja=False)
+#
+# 问题 4: make 成功但找不到 .so 文件
+#   解决: 修改 Makefile 第 74-75 行的 mv 命令，
+#         确保 .so 文件被正确复制到 ../StructuralLosses/ 目录
+#
+# 问题 5: cuda 版本不匹配
+#   解决: 修改 Makefile 第 43-45 行的 CUDA_ARCH，
+#         根据 GPU 架构调整 compute/sm 版本号
+#         例如 RTX 30 系列需添加: -gencode arch=compute_86,code=sm_86
+#
+# ─────────────────────────────────────────────────────────────
+
+# 编译成功后回到项目根目录
+cd ../..
+
+================================================================================
+  第 6 步: 训练模型（点云合成）
+================================================================================
+
+# 默认训练椅子类别，输出到 output/ 目录
+python src/model_point_torch.py
+
+# 指定类别和参数
+python src/model_point_torch.py -category airplane -num_steps 5000 -batch_size 64
+
+# 不进行评估（如果未编译 CUDA 扩展）
+python src/model_point_torch.py -do_evaluation 0
+
+# 命令行参数说明:
+#   -category          类别名 (chair/airplane/table/car/...)
+#   -num_point         点云点数 (默认 2048)
+#   -batch_size        批次大小 (默认 128)
+#   -lr                学习率 (默认 0.0005)
+#   -num_steps         训练步数 (默认 2000)
+#   -sample_step       郎之万采样步数 (默认 64)
+#   -step_size         采样步长 (默认 0.01)
+#   -ref_sigma         参考分布标准差 (默认 0.3)
+#   -net_type          网络类型 (default_medium / default_small / default_big / default_residual)
+#   -do_evaluation     0=不评估, 1=同步评估, 2=异步评估
+#   -cuda              GPU 编号, -1=自动, -2=CPU
+#   -output_dir        输出目录名
+#   -data_path         数据集路径
+
+================================================================================
+  第 7 步: 使用预训练模型推理
+================================================================================
+
+# 3D 生成 (Synthesis)
+python tools/test_torch.py -category chair -checkpoint_path checkpoint/syn_cvpr_chair.ckpt -synthesis
+
+# 生成 + 评估
+python tools/test_torch.py -category chair -checkpoint_path checkpoint/syn_cvpr_chair.ckpt -synthesis -evaluate
+
+# 生成 + 重建 + 插值
+python tools/test_torch.py -category chair -checkpoint_path checkpoint/syn_cvpr_chair.ckpt -synthesis -reconstruction -intepolation
+
+================================================================================
+  第 8 步: 分类任务 (可选)
+================================================================================
+
+# 需要先下载编译 LibSVM
+# https://www.csie.ntu.edu.tw/~cjlin/libsvm/
+
+python tools/classification_torch.py -checkpoint_path output/checkpoint_default_big.ckpt
+
+================================================================================
+  【一键脚本】将以上命令保存为 setup.sh
+================================================================================
+
+#!/bin/bash
+set -e
+
+# 1. 克隆仓库
+git clone https://github.com/fei960922/GPointNet.git
+cd GPointNet
+
+# 2. 创建环境
+conda env create -f environment.yml
+conda activate gpointnet_gpu
+
+# 3. 下载数据
+wget http://www.stat.ucla.edu/~jxie/GPointNet/data/modelnet_2k.zip
+unzip -q modelnet_2k.zip
+
+# 4. 编译 CUDA 扩展
+cd metrics/pytorch_structural_losses
+make
+cd ../..
+
+echo "=============================="
+echo " GPointNet 环境配置完成！"
+echo " 运行训练: python src/model_point_torch.py -category chair"
+echo "=============================="
+
+================================================================================
+  【依赖包完整列表】
+
+  conda 安装:
+    python=3.8.8
+    pytorch=1.8.0 (cuda11.1)
+    torchvision=0.9.0
+    torchaudio=0.8.0
+    cudatoolkit=11.1
+    numpy=1.19.2
+    scipy=1.6.1
+    scikit-learn=0.24.1
+    matplotlib=3.3.4
+    h5py=2.10.0
+    tqdm=4.56.0
+    pillow=8.1.2
+    nvcc_linux-64=11.1
+
+  pip 安装:
+    pytorch-lightning==1.2.1
+    tensorboard==2.4.1
+
+  系统依赖 (Linux):
+    g++
+    make
+    CUDA Toolkit 11.1
+
+================================================================================
+  【Windows 用户备注】
+
+  本项目原生仅支持 Linux。原因:
+  1. environment.yml 中声明了 Linux 专用包 (_libgcc_mutex 等)
+  2. Makefile 编译 CUDA 扩展硬编码了 Linux 路径
+  3. conda 环境前缀指向 /home/jerry/miniconda3 (Linux 路径)
+
+  Windows 上运行需要:
+  - 使用 WSL2 (推荐) 或修改 Makefile/setup.py 适配 Windows
+  - 如需在 Windows 原生运行: 跳过 CUDA 指标编译 (-do_evaluation 0)
+================================================================================

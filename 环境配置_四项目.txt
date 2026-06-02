@@ -1,0 +1,109 @@
+================================================================================
+    reproduce_5 四项目环境配置（均仅支持 Linux）
+================================================================================
+
+┌──────────┬──────────┬──────────┬───────────┬───────────┬──────────┐
+│ 项目     │ 主题     │ 会议     │ Python    │ PyTorch   │ CUDA     │
+├──────────┼──────────┼──────────┼───────────┼───────────┼──────────┤
+│ GPointNet│ 3D生成   │ CVPR 21  │ 3.8       │ 1.8       │ 11.1     │
+│ GeoA3    │ 3D对抗   │ TPAMI 20 │ 3.6+      │ 1.1+      │ 未锁定   │
+│ SI-Adv   │ 3D对抗   │ CVPR 22  │ 3.7       │ 1.6       │ 10.2     │
+│ HiT-ADV  │ 3D对抗   │ CVPR 24  │ 3.8       │ 1.11      │ 未锁定   │
+└──────────┴──────────┴──────────┴───────────┴───────────┴──────────┘
+
+================================================================================
+  一、GPointNet — 3D 点云生成
+================================================================================
+
+conda env create -f GPointNet/environment.yml
+conda activate gpointnet_gpu
+
+# 编译 CUDA 评估指标（可选，跳过则训练时加 -do_evaluation 0）
+conda install -c conda-forge nvcc_linux-64=11.1 -y
+cd GPointNet/metrics/pytorch_structural_losses && make && cd ../../..
+
+================================================================================
+  二、GeoA3 — 几何感知 3D 对抗点云
+================================================================================
+
+# 无现成 environment.yml，手动建
+conda create -n geoa3 python=3.8 -y && conda activate geoa3
+conda install pytorch torchvision cudatoolkit=10.2 -c pytorch -y
+conda install pytorch3d -c pytorch3d -c conda-forge -y
+
+# 编译 PointNet++ CUDA 算子
+cd GeoA3/Model/pointnet2_ops_lib && python setup.py install && cd ../../..
+
+================================================================================
+  三、SI-Adv — 形状不变 3D 对抗点云 (CVPR 2022)
+================================================================================
+
+conda env create -f SI-Adv/environment.yml
+conda activate si_adv_pc
+
+================================================================================
+  四、HiT-ADV — 隐蔽 3D 对抗扰动 (CVPR 2024)
+================================================================================
+
+conda create -n hitadv python=3.8 -y && conda activate hitadv
+pip install -r HiT-ADV/requirements.txt
+
+================================================================================
+  一键脚本（保存为 setup_all.sh）
+================================================================================
+
+#!/bin/bash
+set -e
+
+# GPointNet
+echo "=== GPointNet ==="
+conda env create -f GPointNet/environment.yml
+conda activate gpointnet_gpu
+conda install -c conda-forge nvcc_linux-64=11.1 -y
+cd GPointNet/metrics/pytorch_structural_losses && make && cd ../../..
+
+# GeoA3
+echo "=== GeoA3 ==="
+conda create -n geoa3 python=3.8 -y
+conda activate geoa3
+conda install pytorch torchvision cudatoolkit=10.2 -c pytorch -y
+conda install pytorch3d -c pytorch3d -c conda-forge -y
+cd GeoA3/Model/pointnet2_ops_lib && python setup.py install && cd ../../..
+
+# SI-Adv
+echo "=== SI-Adv ==="
+conda env create -f SI-Adv/environment.yml
+
+# HiT-ADV
+echo "=== HiT-ADV ==="
+conda create -n hitadv python=3.8 -y
+conda activate hitadv
+pip install -r HiT-ADV/requirements.txt
+
+echo "Done! 四个项目环境均已创建。"
+
+================================================================================
+  共用数据集
+================================================================================
+
+# ModelNet40（GeoA3、SI-Adv、HiT-ADV 共用）
+wget https://shapenet.cs.stanford.edu/media/modelnet40_normal_resampled.zip
+unzip modelnet40_normal_resampled.zip
+
+# GPointNet 专用 ModelNet
+wget http://www.stat.ucla.edu/~jxie/GPointNet/data/modelnet_2k.zip
+unzip modelnet_2k.zip
+
+================================================================================
+  PyTorch3D 通用安装
+================================================================================
+
+# conda（推荐，自动匹配 CUDA）
+conda install pytorch3d -c pytorch3d -c conda-forge -y
+
+# pip（需确保 CUDA/PyTorch 版本匹配）
+pip install pytorch3d
+
+# 版本对应参考：
+#   PyTorch 1.6  → pytorch3d 0.6.0  （SI-Adv）
+#   PyTorch 1.11 → pytorch3d 0.7.2  （HiT-ADV）
