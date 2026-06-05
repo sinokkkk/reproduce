@@ -1,109 +1,98 @@
 ================================================================================
-    reproduce_5 四项目环境配置（均仅支持 Linux）
+    reproduce_5 四项目环境配置（Linux + micromamba）
 ================================================================================
 
+  前提：base 环境已有 PyTorch 1.8 + CUDA 11.1 + Python 3.8
+  核心规则：
+    1. PyTorch 用 pip（带 CUDA，快）
+    2. pytorch3d 用 conda --no-deps（pip 缺旧版本，--no-deps 防 conda 拉 CPU 版 torch 覆盖 pip 版）
+
 ┌──────────┬──────────┬──────────┬───────────┬───────────┬──────────┐
-│ 项目     │ 主题     │ 会议     │ Python    │ PyTorch   │ CUDA     │
+│ 项目     │ 主题     │ 会议     │ Python    │ PyTorch   │ pytorch3d│
 ├──────────┼──────────┼──────────┼───────────┼───────────┼──────────┤
-│ GPointNet│ 3D生成   │ CVPR 21  │ 3.8       │ 1.8       │ 11.1     │
-│ GeoA3    │ 3D对抗   │ TPAMI 20 │ 3.6+      │ 1.1+      │ 未锁定   │
-│ SI-Adv   │ 3D对抗   │ CVPR 22  │ 3.7       │ 1.6       │ 10.2     │
-│ HiT-ADV  │ 3D对抗   │ CVPR 24  │ 3.8       │ 1.11      │ 未锁定   │
+│ GPointNet│ 3D生成   │ CVPR 21  │ 3.8       │ 1.8       │ 不需要   │
+│ GeoA3    │ 3D对抗   │ TPAMI 20 │ 3.8       │ 1.8       │ 最新     │
+│ SI-Adv   │ 3D对抗   │ CVPR 22  │ 3.7       │ 1.6(cu101)│ 0.6.0   │
+│ HiT-ADV  │ 3D对抗   │ CVPR 24  │ 3.8       │ 1.11      │ 最新     │
 └──────────┴──────────┴──────────┴───────────┴───────────┴──────────┘
+
+================================================================================
+  micromamba 前置（每新终端需执行一次）
+================================================================================
+
+eval "$(micromamba shell hook --shell bash)"
 
 ================================================================================
   一、GPointNet — 3D 点云生成
 ================================================================================
 
-conda env create -f GPointNet/environment.yml
-conda activate gpointnet_gpu
+micromamba create -n gpointnet_gpu --clone base -y
+micromamba activate gpointnet_gpu
+pip install pytorch-lightning==1.2.1 tensorboard
 
-# 编译 CUDA 评估指标（可选，跳过则训练时加 -do_evaluation 0）
-conda install -c conda-forge nvcc_linux-64=11.1 -y
-cd GPointNet/metrics/pytorch_structural_losses && make && cd ../../..
+# 编译评估指标（可选，不编译则训练加 -do_evaluation 0）
+# micromamba install -c conda-forge nvcc_linux-64=11.1 -y
+# cd GPointNet/metrics/pytorch_structural_losses && make && cd ../../..
 
 ================================================================================
   二、GeoA3 — 几何感知 3D 对抗点云
 ================================================================================
 
-# 无现成 environment.yml，手动建
-conda create -n geoa3 python=3.8 -y && conda activate geoa3
-conda install pytorch torchvision cudatoolkit=10.2 -c pytorch -y
-conda install pytorch3d -c pytorch3d -c conda-forge -y
-
-# 编译 PointNet++ CUDA 算子
-cd GeoA3/Model/pointnet2_ops_lib && python setup.py install && cd ../../..
-
-================================================================================
-  三、SI-Adv — 形状不变 3D 对抗点云 (CVPR 2022)
-================================================================================
-
-conda env create -f SI-Adv/environment.yml
-conda activate si_adv_pc
+# 不能 clone base：pytorch3d 会拉 conda 版 torch 覆盖 pip 版，导致 CUDA=False
+micromamba create -n geoa3 python=3.8 -y
+micromamba activate geoa3
+pip install torch==1.8.0+cu111 torchvision==0.9.0+cu111 -f https://download.pytorch.org/whl/torch_stable.html
+micromamba install pytorch3d -c pytorch3d -c conda-forge --no-deps -y
+micromamba install fvcore iopath -c conda-forge -y
+pip install open3d
+cd GeoA3/Model/pointnet2_ops_lib && pip install . && cd ../../..
 
 ================================================================================
-  四、HiT-ADV — 隐蔽 3D 对抗扰动 (CVPR 2024)
+  三、SI-Adv — 形状不变 3D 对抗点云
 ================================================================================
 
-conda create -n hitadv python=3.8 -y && conda activate hitadv
-pip install -r HiT-ADV/requirements.txt
+micromamba create -n si_adv_pc python=3.7 -y
+micromamba activate si_adv_pc
+pip install torch==1.6.0+cu101 torchvision==0.7.0+cu101 -f https://download.pytorch.org/whl/torch_stable.html
+micromamba install pytorch3d=0.6.0 -c pytorch3d -c conda-forge --no-deps -y
+micromamba install fvcore iopath -c conda-forge -y
+pip install numpy scipy scikit-learn open3d tqdm seaborn h5py matplotlib
 
 ================================================================================
-  一键脚本（保存为 setup_all.sh）
+  四、HiT-ADV — 隐蔽 3D 对抗扰动
 ================================================================================
 
-#!/bin/bash
-set -e
+micromamba create -n hitadv python=3.8 -y
+micromamba activate hitadv
+pip install torch==1.11.0+cu111 torchvision==0.12.0+cu111 -f https://download.pytorch.org/whl/torch_stable.html
+micromamba install pytorch3d -c pytorch3d -c conda-forge --no-deps -y
+micromamba install fvcore iopath -c conda-forge -y
+pip install h5py numpy matplotlib open3d opencv-python scikit-learn scipy seaborn tqdm
 
-# GPointNet
-echo "=== GPointNet ==="
-conda env create -f GPointNet/environment.yml
-conda activate gpointnet_gpu
-conda install -c conda-forge nvcc_linux-64=11.1 -y
-cd GPointNet/metrics/pytorch_structural_losses && make && cd ../../..
+================================================================================
+  验证四环境
+================================================================================
 
-# GeoA3
-echo "=== GeoA3 ==="
-conda create -n geoa3 python=3.8 -y
-conda activate geoa3
-conda install pytorch torchvision cudatoolkit=10.2 -c pytorch -y
-conda install pytorch3d -c pytorch3d -c conda-forge -y
-cd GeoA3/Model/pointnet2_ops_lib && python setup.py install && cd ../../..
-
-# SI-Adv
-echo "=== SI-Adv ==="
-conda env create -f SI-Adv/environment.yml
-
-# HiT-ADV
-echo "=== HiT-ADV ==="
-conda create -n hitadv python=3.8 -y
-conda activate hitadv
-pip install -r HiT-ADV/requirements.txt
-
-echo "Done! 四个项目环境均已创建。"
+micromamba activate gpointnet_gpu && python -c "import torch, pytorch_lightning, numpy; print('GPointNet OK | CUDA', torch.cuda.is_available())"
+micromamba activate geoa3          && python -c "import torch, pytorch3d, open3d; print('GeoA3 OK | CUDA', torch.cuda.is_available())"
+micromamba activate si_adv_pc      && python -c "import torch, pytorch3d, open3d; print('SI-Adv OK | CUDA', torch.cuda.is_available())"
+micromamba activate hitadv         && python -c "import torch, pytorch3d, open3d, cv2; print('HiT-ADV OK | CUDA', torch.cuda.is_available())"
 
 ================================================================================
   共用数据集
 ================================================================================
 
-# ModelNet40（GeoA3、SI-Adv、HiT-ADV 共用）
-wget https://shapenet.cs.stanford.edu/media/modelnet40_normal_resampled.zip
-unzip modelnet40_normal_resampled.zip
-
-# GPointNet 专用 ModelNet
-wget http://www.stat.ucla.edu/~jxie/GPointNet/data/modelnet_2k.zip
-unzip modelnet_2k.zip
+wget https://shapenet.cs.stanford.edu/media/modelnet40_normal_resampled.zip && unzip modelnet40_normal_resampled.zip
+wget http://www.stat.ucla.edu/~jxie/GPointNet/data/modelnet_2k.zip && unzip modelnet_2k.zip
 
 ================================================================================
-  PyTorch3D 通用安装
+  踩坑备忘
 ================================================================================
 
-# conda（推荐，自动匹配 CUDA）
-conda install pytorch3d -c pytorch3d -c conda-forge -y
-
-# pip（需确保 CUDA/PyTorch 版本匹配）
-pip install pytorch3d
-
-# 版本对应参考：
-#   PyTorch 1.6  → pytorch3d 0.6.0  （SI-Adv）
-#   PyTorch 1.11 → pytorch3d 0.7.2  （HiT-ADV）
+1. pytorch3d 旧版本（0.6.0/0.7.2）pip 没有，必须走 conda-forge/pytorch3d 频道
+2. torch 1.6.0 没有 cu102 构建，用 cu101（CUDA 驱动向下兼容）
+3. conda 安装 pytorch3d 会连带拉 conda 版 torch（CPU 版），必须 --no-deps 阻止
+4. --no-deps 后需手动补装 pytorch3d 的真依赖：fvcore + iopath
+5. GeoA3/HiT-ADV 不能 clone base——pytorch3d 会覆盖 pip 版 torch 导致 CUDA=False
+6. mayavi 编译需 numpy 先装，HiT-ADV 实际不依赖，直接跳过
+7. SI-Adv yml 锁死 100+ 系统库精确版本，解析极慢，手动装核心依赖即可
