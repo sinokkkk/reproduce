@@ -80,6 +80,10 @@ def parse_args():
                         help='save clean/adversarial point cloud pairs for downstream energy analysis')
     parser.add_argument('--attack_pairs_dir', type=str, default='saved_hitadv_pairs',
                         help='directory for saved clean/adversarial point cloud pairs')
+    parser.add_argument('--target_label', type=int, default=None,
+                        help='filter batches to only samples with this label before attack/save (e.g., 8 for chair)')
+    parser.add_argument('--max_saved_samples', type=int, default=-1,
+                        help='maximum number of samples to save across all batches; -1 means no limit')
 
     return parser.parse_args()
 

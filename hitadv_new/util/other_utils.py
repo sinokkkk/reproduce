@@ -34,6 +34,14 @@ def eval_ASR(model, test_loader, args, val_attack):
         os.makedirs(attack_pairs_dir, exist_ok=True)
         logger.info(f'Saving clean/adversarial point cloud pairs to: {attack_pairs_dir}')
 
+    target_label = getattr(args, 'target_label', None)
+    max_saved = getattr(args, 'max_saved_samples', -1)
+    saved_count = 0
+    if target_label is not None:
+        logger.info(f'Filtering samples to target_label={target_label}')
+    if max_saved > 0:
+        logger.info(f'Will stop after saving {max_saved} samples')
+
     # ***** INITIALIZE METRIC ***** ***** ***** ***** ***** ***** ***** *****
     model.eval()
     at_num, at_denom = 0, 0
@@ -56,6 +64,25 @@ def eval_ASR(model, test_loader, args, val_attack):
         if getattr(args, 'max_batches', -1) > 0 and batch >= args.max_batches:
             logger.info(f'Stopping early after {batch} batch(es) because max_batches={args.max_batches}')
             break
+
+        # Filter by target_label before attack
+        if target_label is not None:
+            mask = (label == target_label)
+            if mask.sum().item() == 0:
+                continue
+            ori_data = ori_data[mask]
+            label = label[mask]
+
+        # Enforce max_saved_samples after filtering
+        if max_saved > 0:
+            remaining = max_saved - saved_count
+            if remaining <= 0:
+                logger.info(f'Reached max_saved_samples={max_saved}; stopping.')
+                break
+            if ori_data.shape[0] > remaining:
+                ori_data = ori_data[:remaining]
+                label = label[:remaining]
+
         batch += 1
         ori_data, label = ori_data.float().cuda(), label.long().cuda()
 
@@ -113,14 +140,24 @@ def eval_ASR(model, test_loader, args, val_attack):
             at_num += mask_ori.sum().float().item() - (mask_ori * mask_adv).sum().float().item()
             denom += float(batch_size)
             num += mask_adv.sum().float()
+
+            if max_saved > 0:
+                saved_count += batch_size
+
+        if max_saved > 0 and saved_count >= max_saved:
+            logger.info(f'Reached max_saved_samples={max_saved}; stopping.')
+            break
     # ***** END EVALUATING ***** ***** ***** ***** ***** ***** ***** *****
 
     # ***** LOGGING ***** ***** ***** ***** ***** ***** ***** *****
     ASR = at_num / (at_denom + 1e-9)
     logger.info(f'Overall attack success rate: {ASR}')
-    logger.info(f'Overall KNN dist: {knn_dist / batch}')
-    logger.info(f'Overall Uniform dist: {uniform_dist / batch}')
-    logger.info(f'Overall CurvStd dist: {curv_std_dist / batch}')
+    if batch > 0:
+        logger.info(f'Overall KNN dist: {knn_dist / batch}')
+        logger.info(f'Overall Uniform dist: {uniform_dist / batch}')
+        logger.info(f'Overall CurvStd dist: {curv_std_dist / batch}')
+    else:
+        logger.info('No batches were attacked after applying filters.')
     # ***** END LOGGING ***** ***** ***** ***** ***** ***** ***** *****
 
     return ASR

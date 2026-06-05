@@ -38,6 +38,8 @@ def parse_args():
                         help='max value for --normalize provided_minmax')
     parser.add_argument('--file_pattern', type=str, default='batch_*.npz',
                         help='glob pattern inside pairs_dir')
+    parser.add_argument('--target_label', type=int, default=None,
+                        help='filter samples to only this label before energy computation; skip files with no matches')
     return parser.parse_args()
 
 
@@ -179,8 +181,18 @@ def main():
 
     for file_idx, pair_file in enumerate(pair_files):
         d = np.load(pair_file)
-        clean = adjust_num_points(ensure_b_n_3('clean', d['clean']), target_num_point)
-        adv = adjust_num_points(ensure_b_n_3('adv', d['adv']), target_num_point)
+
+        # Apply target_label filter before energy computation
+        if args.target_label is not None:
+            keep_mask = (d['label'] == args.target_label)
+            if not np.any(keep_mask):
+                print(f'Skipping {os.path.basename(pair_file)}: no samples with label={args.target_label}')
+                continue
+        else:
+            keep_mask = np.ones(d['label'].shape[0], dtype=bool)
+
+        clean = adjust_num_points(ensure_b_n_3('clean', d['clean'][keep_mask]), target_num_point)
+        adv = adjust_num_points(ensure_b_n_3('adv', d['adv'][keep_mask]), target_num_point)
 
         clean = normalize_points(clean, args.normalize, args.norm_min, args.norm_max).astype(np.float32)
         adv = normalize_points(adv, args.normalize, args.norm_min, args.norm_max).astype(np.float32)
@@ -189,10 +201,10 @@ def main():
         adv_energy = compute_energy(model, adv, device, args.batch_size)
         energy_diff = adv_energy - clean_energy
 
-        labels = d['label'].astype(np.int64) if 'label' in d.files else np.full(clean.shape[0], -1, dtype=np.int64)
-        ori_pred = d['ori_pred'].astype(np.int64) if 'ori_pred' in d.files else np.full(clean.shape[0], -1, dtype=np.int64)
-        adv_pred = d['adv_pred'].astype(np.int64) if 'adv_pred' in d.files else np.full(clean.shape[0], -1, dtype=np.int64)
-        attack_success = d['attack_success'].astype(bool) if 'attack_success' in d.files else np.zeros(clean.shape[0], dtype=bool)
+        labels = d['label'][keep_mask].astype(np.int64) if 'label' in d.files else np.full(clean.shape[0], -1, dtype=np.int64)
+        ori_pred = d['ori_pred'][keep_mask].astype(np.int64) if 'ori_pred' in d.files else np.full(clean.shape[0], -1, dtype=np.int64)
+        adv_pred = d['adv_pred'][keep_mask].astype(np.int64) if 'adv_pred' in d.files else np.full(clean.shape[0], -1, dtype=np.int64)
+        attack_success = d['attack_success'][keep_mask].astype(bool) if 'attack_success' in d.files else np.zeros(clean.shape[0], dtype=bool)
 
         sidecar_name = os.path.basename(pair_file).replace('.npz', '_energy.npz')
         np.savez_compressed(
@@ -233,12 +245,38 @@ def main():
             })
         print(f'Processed {file_idx + 1}/{len(pair_files)}: {os.path.basename(pair_file)}')
 
+    fieldnames = [
+        'source_file',
+        'file_index',
+        'sample_index',
+        'label',
+        'ori_pred',
+        'adv_pred',
+        'attack_success',
+        'clean_energy',
+        'adv_energy',
+        'energy_diff',
+    ]
     with open(csv_path, 'w', newline='') as f:
-        writer = csv.DictWriter(f, fieldnames=list(rows[0].keys()))
+        writer = csv.DictWriter(f, fieldnames=fieldnames)
         writer.writeheader()
         writer.writerows(rows)
 
-    np.savez_compressed(npz_path, **{key: np.concatenate(value, axis=0) for key, value in aggregate.items()})
+    if aggregate:
+        np.savez_compressed(npz_path, **{key: np.concatenate(value, axis=0) for key, value in aggregate.items()})
+    else:
+        np.savez_compressed(
+            npz_path,
+            clean_energy=np.array([], dtype=np.float32),
+            adv_energy=np.array([], dtype=np.float32),
+            energy_diff=np.array([], dtype=np.float32),
+            label=np.array([], dtype=np.int64),
+            ori_pred=np.array([], dtype=np.int64),
+            adv_pred=np.array([], dtype=np.int64),
+            attack_success=np.array([], dtype=bool),
+            source_file=np.array([], dtype=str),
+        )
+        print('No samples matched the requested filters; wrote empty result files.')
     print(f'Saved CSV: {csv_path}')
     print(f'Saved NPZ: {npz_path}')
 
