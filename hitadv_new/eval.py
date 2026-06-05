@@ -80,7 +80,10 @@ def parse_args():
 
 if __name__ == '__main__':
     args = parse_args()
-    CWPerturb_args = FGM.CWPert_args.get_args()
+    # Use CW attack defaults without re-parsing eval.py command-line arguments.
+    # FGM.CWPert_args defines its own --dataset choices (mn40/remesh_mn40/...),
+    # which conflicts with this file's --dataset choices (ModelNet/ShapeNetPart).
+    CWPerturb_args = FGM.CWPert_args.get_args([])
 
     state_dict = torch.load(args.checkpoint)
     args.step_size = args.budget * 2 / args.num_iter

@@ -5,7 +5,7 @@ def str2bool(v):
     return v.lower() in ("yes", "true", "t", "1")
 
 
-def get_args():
+def get_args(argv=None):
     parser = argparse.ArgumentParser(description='Point Cloud Recognition')
     parser.add_argument('--data_root', type=str,
                         default='official_data/modelnet40_normal_resampled')
@@ -50,5 +50,5 @@ def get_args():
     parser.add_argument('--use_uniform_sample', action='store_true', default=False, help='use uniform sampiling')
     parser.add_argument('--process_data', action='store_true', default=False, help='save data offline')
     # args = parser.parse_args()
-    args, unknown = parser.parse_known_args()
+    args, unknown = parser.parse_known_args(argv)
     return args
