@@ -27,8 +27,14 @@ export LD_LIBRARY_PATH="${TORCH_LIB}:${ENV_LIB}:${CUDA_LIB:+${CUDA_LIB}:}${LD_LI
 # Navigate to script dir
 cd "$(dirname "$0")"
 
-# Build pointnet2_ops if not yet installed
-python -c "import pointnet2_ops" 2>/dev/null || pip install -e ./pointnet2_ops_lib
+# ---- build/verify pointnet2_ops (only needed for --model pointnet++) ----
+if python -c "import pointnet2_ops" 2>/dev/null; then
+    echo "pointnet2_ops: OK"
+else
+    echo "pointnet2_ops: SKIP (not required for default model; use --model pointnet++ to trigger build)"
+    # Uncomment below if you need PointNet++ model:
+    # TORCH_CUDA_ARCH_LIST="6.0;7.0;7.5;8.0" pip install -e ./pointnet2_ops_lib 2>&1 | tail -3
+fi
 
 # Run
 echo "Torch: $(python -c 'import torch; print(torch.__version__, "CUDA:", torch.cuda.is_available())')"
