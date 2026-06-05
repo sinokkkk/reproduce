@@ -183,6 +183,7 @@ def create_logger(save_path='', file_type='', level='debug'):
     logger.addHandler(cs)
 
     if save_path != '':
+        os.makedirs(save_path, exist_ok=True)
         file_name = os.path.join(save_path, file_type + '_log.txt')
         fh = logging.FileHandler(file_name, mode='w')
         fh.setLevel(_level)
