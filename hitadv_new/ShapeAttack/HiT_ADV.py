@@ -7,7 +7,10 @@ import torch.optim as optim
 import numpy as np
 from util.dist_utils import L2Dist, LaplacianDist, ChamferDist, HausdorffDist
 from pytorch3d.ops import knn_points, knn_gather
-from mayavi import mlab
+try:
+    from mayavi import mlab
+except ModuleNotFoundError:
+    mlab = None
 import torch.nn.functional as F
 import open3d as o3d
 
@@ -560,6 +563,9 @@ class HiT_ADV:
 
 
 def visualize_point_cloud(point_cloud, sampling_rate=1.0, point_size=0.05):
+    if mlab is None:
+        raise RuntimeError('mayavi is not installed; visualization is unavailable, but eval.py does not require it.')
+
     # random sampling
     num_points = point_cloud.shape[0]
     num_sampled_points = int(num_points * sampling_rate)
