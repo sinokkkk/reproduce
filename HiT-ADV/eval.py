@@ -66,8 +66,10 @@ def parse_args():
                         help='model for training')
     parser.add_argument('--kappa', type=float, default=30.,
                         help='min margin in logits adv loss')
-
-
+    parser.add_argument('--data_path', type=str, default='../dataset/modelnet40_normal_resampled',
+                        help='path to ModelNet40 dataset')
+    parser.add_argument('--checkpoint', type=str, default='Checkpoint/PN_NT.checkpoint',
+                        help='path to pretrained model checkpoint')
 
     return parser.parse_args()
 
@@ -76,7 +78,7 @@ if __name__ == '__main__':
     args = parse_args()
     CWPerturb_args = FGM.CWPert_args.get_args()
 
-    state_dict = torch.load('Checkpoint/PN_NT.checkpoint')
+    state_dict = torch.load(args.checkpoint)
     args.step_size = args.budget * 2 / args.num_iter
     logger = create_logger('./log', 'eval_last', 'info')
 
@@ -84,12 +86,12 @@ if __name__ == '__main__':
     CW_adv_func = UntargetedLogitsAdvLoss(kappa=args.kappa)
 
     if args.dataset == 'ModelNet':
-        data_path = '../../PC_Dataset/modelnet40_normal_resampled'
+        data_path = args.data_path
         test_dataset = ModelNetDataLoader(root=data_path, args=args, split='test', process_data=args.process_data)
         testDataLoader = torch.utils.data.DataLoader(test_dataset, batch_size=args.batch_size, shuffle=False,
                                                     num_workers=10)
     elif args.dataset == 'ShapeNetPart':
-        data_path = '../../PC_Dataset/shapenetcore_partanno_segmentation_benchmark_v0_normal/'
+        data_path = '../dataset/shapenetcore_partanno_segmentation_benchmark_v0_normal/'
         TEST_DATASET = PartNormalDataset(
             root=data_path,
             npoints=args.num_point,

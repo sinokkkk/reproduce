@@ -123,6 +123,10 @@ def parse_args():
     parser.add_argument('--k', type=int, default=1, metavar='N', help='Num of nearest neighbors to use')
     parser.add_argument('--num_points', type=int, default=1024,
                         help='num of points to use')
+    parser.add_argument('--data_path', type=str, default='../dataset/modelnet40_normal_resampled',
+                        help='path to ModelNet40 dataset')
+    parser.add_argument('--checkpoint', type=str, default='Checkpoint/PN_NT.checkpoint',
+                        help='path to pretrained model checkpoint')
 
     return parser.parse_args()
 
@@ -172,11 +176,11 @@ def get_Laplace_from_pc(ori_pc):
 if __name__ == '__main__':
     args = parse_args()
     os.environ["CUDA_VISIBLE_DEVICES"] = args.gpu
-    state_dict = torch.load('Checkpoint/PN_NT.checkpoint')
+    state_dict = torch.load(args.checkpoint)
 
     args.step_size = args.budget / float(args.num_iter)
 
-    data = np.loadtxt('../../PC_Dataset/modelnet40_normal_resampled/car/car_0005.txt', delimiter=',',
+    data = np.loadtxt(os.path.join(args.data_path, 'car/car_0005.txt'), delimiter=',',
                       dtype=np.float32)
 
     target = torch.Tensor([7])

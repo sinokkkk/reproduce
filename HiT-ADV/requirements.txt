@@ -1,7 +1,6 @@
 h5py==3.9.0
 matplotlib==3.7.2
 mayavi==4.8.1
-numpy==1.24.3
 numpy==1.24.4
 open3d==0.17.0
 opencv_python==4.8.1.78
