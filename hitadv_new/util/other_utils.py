@@ -53,6 +53,9 @@ def eval_ASR(model, test_loader, args, val_attack):
     pbar = tqdm(test_loader)
     for i, (ori_data, label) in enumerate(pbar):
         # for ori_data, label in test_loader:
+        if getattr(args, 'max_batches', -1) > 0 and batch >= args.max_batches:
+            logger.info(f'Stopping early after {batch} batch(es) because max_batches={args.max_batches}')
+            break
         batch += 1
         ori_data, label = ori_data.float().cuda(), label.long().cuda()
 

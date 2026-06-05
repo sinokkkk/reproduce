@@ -35,6 +35,12 @@ def parse_args():
                         help='Attack method to use')
     parser.add_argument('--num_iter', type=int, default=100,
                         help='iteration steps')
+    parser.add_argument('--binary_step', type=int, default=10,
+                        help='binary search steps for HiT-ADV; lower values are faster for debugging')
+    parser.add_argument('--attack_lr', type=float, default=1e-2,
+                        help='learning rate for HiT-ADV optimization')
+    parser.add_argument('--max_batches', type=int, default=-1,
+                        help='maximum number of dataloader batches to attack; -1 means all batches')
     parser.add_argument('--mu', type=float, default=1.,
                         help='momentum factor for MIFGM attack')
     parser.add_argument('--gpu', type=str, default='0', help='specify gpu device')
@@ -132,10 +138,10 @@ if __name__ == '__main__':
     model.load_state_dict(state_dict['model_state_dict'])
     # model.load_state_dict(state_dict['last'])
 
-    HiT_attacker = HiT_ADV(model, adv_func=CW_adv_func, attack_lr=CWPerturb_args.attack_lr,
+    HiT_attacker = HiT_ADV(model, adv_func=CW_adv_func, attack_lr=args.attack_lr,
                                central_num=args.central_num, total_central_num=args.total_central_num,
-                               init_weight=10., max_weight=80., binary_step=CWPerturb_args.binary_step,
-                               num_iter=CWPerturb_args.num_iter, clip_func=None,
+                               init_weight=10., max_weight=80., binary_step=args.binary_step,
+                               num_iter=args.num_iter, clip_func=None,
                                cd_weight=args.cd_weight, ker_weight=args.ker_weight,
                                hide_weight=args.hide_weight, curv_loss_knn=args.curv_loss_knn,
                                max_sigm=args.max_sigm, min_sigm=args.min_sigm,
